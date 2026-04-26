@@ -1,4 +1,4 @@
-# Autonomous Spacecraft Rendezvous Estimation Pipeline
+# Autonomous Spacecraft Relative Navigation with EKF in ROS 2
 
 A ROS 2 Jazzy project for spacecraft relative-state simulation, noisy measurement generation, and EKF-based state estimation.
 
@@ -53,6 +53,8 @@ The plot below compares:
 - EKF estimate  
 
 ![EKF Result](docs/results/ekf_result.png)
+
+The EKF reduced position RMSE from approximately 0.046 (raw measurements) to approximately 0.029, achieving about a 37% improvement in estimation accuracy.
 
 ## Current Status
 
