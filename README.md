@@ -79,3 +79,7 @@ Working features:
 - ROS 2 Jazzy  
 - NumPy  
 - Matplotlib  
+
+## License
+
+MIT, see [LICENSE](LICENSE).
