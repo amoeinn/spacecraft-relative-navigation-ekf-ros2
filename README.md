@@ -1,84 +1,116 @@
-# Autonomous Spacecraft Relative Navigation with EKF in ROS 2
+# spacecraft-relative-navigation-ekf-ros2
 
-A ROS 2 Jazzy project for spacecraft relative-state simulation, noisy measurement generation, and EKF-based state estimation.
+Spacecraft relative navigation in ROS 2 Jazzy: truth dynamics, a noisy sensor model, and an Extended Kalman Filter estimating the chaser state, running as separate nodes over the ROS 2 graph.
 
-## Overview
+![EKF tracking through measurement noise](docs/results/ekf_result.png)
 
-This project simulates a simplified spacecraft relative-motion scenario and estimates the chaser state using an Extended Kalman Filter (EKF).
+The EKF reduces position RMSE from 0.086 m on the raw measurements to 0.052 m, about 40 percent better. Numbers vary a little run to run since the sensor noise is stochastic.
 
-The system includes:
-- Truth simulation node
-- Noisy sensor simulation node
-- EKF estimation node
-- Live plotting node
-- ROS 2 launch integration
+## What is here
 
-## Architecture
+Four packages, three running nodes, and an analysis node that measures the result.
 
-- **space_msgs**  
-  Custom ROS 2 messages for relative state, control commands, target pose, and mission status  
+**space_msgs** defines the custom messages. `RelativeState` carries a timestamp, position and velocity, and is the message type on all three topics.
 
-- **space_sim_py**  
-  Truth dynamics  
-  Sensor measurement generation  
+**space_sim_py** runs the truth dynamics and the sensor model. The truth node propagates constant-velocity relative motion; the sensor node subscribes to it, adds Gaussian noise to position, and publishes a measurement with the velocity fields zeroed, since it does not measure velocity.
 
-- **relative_nav_py**  
-  EKF state estimator  
-  Live plotting node  
+**relative_nav_py** runs the EKF, which predicts on a constant-velocity model and updates on position measurements, estimating velocity from the position history. It also holds the analysis node.
 
-- **space_bringup**  
-  Launch file to run the full pipeline  
+**space_bringup** launches the three pipeline nodes together.
 
-## Topics
+```text
+truth_sim_node        publishes /truth_state
+    to sensor_sim_node        publishes /sensor/relative_measurement
+    to ekf_node               publishes /nav/estimated_state
+```
 
-- `/truth_state`  
-- `/sensor/relative_measurement`  
-- `/nav/estimated_state`  
+## Results
 
-## How to Run
+The analysis node subscribes to all three topics, pairs samples and reports the improvement.
+
+Pairing matters. The three nodes publish independently, so samples arrive interleaved rather than as matched triples. Comparing whichever message arrived most recently would fold the pipeline's own latency into the error, so samples are matched by nearest timestamp instead.
+
+Only position is compared, because the sensor publishes position and zeroes the velocity fields, so a velocity comparison against the measurement would be meaningless.
+
+| | position RMSE |
+| --- | --- |
+| raw measurement | 0.086 m |
+| EKF estimate | 0.052 m |
+
+The measurement figure is what the sensor model predicts: noise of 0.05 m per axis on three axes gives a position error norm around 0.087 m.
+
+## Limitations
+
+**Constant-velocity dynamics.** The truth model propagates in a straight line, which is a reasonable local approximation for short-baseline relative motion and is not orbital mechanics. Clohessy-Wiltshire dynamics would be the next step.
+
+**Position measurements only.** One sensor, Gaussian noise, no bias, no dropouts, no outliers. Real relative navigation fuses several sensors with different failure modes.
+
+**Open loop.** Nothing acts on the estimate. There is no controller, no guidance, and no mission phase logic, so this estimates state rather than doing anything with it.
+
+**No filter consistency testing.** NEES and NIS would show whether the filter's covariance is honest about its own uncertainty, which is the standard check for an overconfident EKF.
+
+## Requirements
+
+ROS 2 Jazzy, Python 3.12, numpy and matplotlib.
+
+## Setup
 
 ```bash
-cd ~/space_autonomy_capture_ros2/ws
+cd ws
 source /opt/ros/jazzy/setup.bash
 colcon build --merge-install
 source install/setup.bash
+```
+
+## Running it
+
+Start the pipeline:
+
+```bash
 ros2 launch space_bringup sim_and_nav.launch.py
 ```
 
-## Result
+In a second terminal, record for twenty seconds and report the RMSE, saving the figure to `docs/results/`:
 
-The plot below compares:
-- Truth state  
-- Noisy measurement  
-- EKF estimate  
+```bash
+cd ~/aerospace-portfolio/spacecraft-relative-navigation-ekf-ros2
+source /opt/ros/jazzy/setup.bash
+source ws/install/setup.bash
+ros2 run relative_nav_py analysis_node
+```
 
-![EKF Result](docs/results/ekf_result.png)
+The recording window and output path are parameters:
 
-The EKF reduced position RMSE from approximately 0.046 (raw measurements) to approximately 0.029, achieving about a 37% improvement in estimation accuracy.
+```bash
+ros2 run relative_nav_py analysis_node --ros-args -p duration:=60.0
+```
 
-## Current Status
+Inspect the topics directly:
 
-Working features:
-- Constant-velocity truth simulation  
-- Noisy position measurement generation  
-- EKF state estimation  
-- Real-time plotting  
-- 10 Hz ROS 2 pipeline  
+```bash
+ros2 topic echo /nav/estimated_state
+ros2 topic hz /truth_state
+```
 
-## Next Steps
+## Structure
 
-- Add closed-loop control node  
-- Add guidance logic  
-- Add RViz or Gazebo visualization  
-- Extend dynamics beyond constant velocity  
-- Add spacecraft rendezvous mission phases  
-
-## Tech Stack
-
-- Python  
-- ROS 2 Jazzy  
-- NumPy  
-- Matplotlib  
+```text
+ws/src/
+  space_msgs/            custom messages
+    msg/RelativeState.msg    timestamp, position, velocity
+  space_sim_py/
+    dynamics.py              constant-velocity relative motion
+    sensor_models.py         Gaussian noise on position
+    truth_sim_node.py        publishes /truth_state
+    sensor_sim_node.py       publishes /sensor/relative_measurement
+  relative_nav_py/
+    ekf.py                   the filter itself
+    ekf_node.py              publishes /nav/estimated_state
+    analysis_node.py         RMSE and the result figure
+  space_bringup/
+    launch/sim_and_nav.launch.py
+docs/results/            generated figures
+```
 
 ## License
 
