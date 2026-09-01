@@ -25,6 +25,7 @@ setup(
     entry_points={
         'console_scripts': [
             'ekf_node = relative_nav_py.ekf_node:main',
+            'analysis_node = relative_nav_py.analysis_node:main',
         ],
     },
 )
