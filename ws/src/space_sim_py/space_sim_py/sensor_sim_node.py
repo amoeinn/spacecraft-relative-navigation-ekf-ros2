@@ -41,6 +41,11 @@ class SensorSimNode(Node):
 def main(args=None):
     rclpy.init(args=args)
     node = SensorSimNode()
-    rclpy.spin(node)
-    node.destroy_node()
-    rclpy.shutdown()
+    try:
+        rclpy.spin(node)
+    except KeyboardInterrupt:
+        pass
+    finally:
+        node.destroy_node()
+        if rclpy.ok():
+            rclpy.shutdown()
